@@ -1,0 +1,1736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Studio3D — Block Building Editor</title>
+<style>
+  /* ===== DESIGN SYSTEM ===== */
+  :root {
+    --bg-deep:      #0d0f14;
+    --bg-panel:     #13161e;
+    --bg-widget:    #1a1e2a;
+    --bg-hover:     #222638;
+    --bg-active:    #2a2f45;
+    --border:       #2a2f45;
+    --border-light: #363d58;
+    --accent:       #4f9eff;
+    --accent-dim:   #2d5fa8;
+    --accent-glow:  rgba(79,158,255,0.15);
+    --danger:       #ff5f5f;
+    --success:      #4fdb8f;
+    --warn:         #ffb347;
+    --text-primary: #e4e8f4;
+    --text-secondary:#8b92b0;
+    --text-muted:   #4f566b;
+    --font-ui:      'JetBrains Mono', 'Fira Code', monospace;
+    --font-display: 'Space Mono', monospace;
+    --toolbar-h:    48px;
+    --panel-w:      260px;
+    --radius:       6px;
+    --transition:   0.15s ease;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-ui);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  /* ===== TOOLBAR ===== */
+  #toolbar {
+    height: var(--toolbar-h);
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 6px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  .toolbar-logo {
+    font-family: var(--font-display);
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding-right: 12px;
+    border-right: 1px solid var(--border);
+    margin-right: 6px;
+  }
+
+  .toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 6px;
+    border-right: 1px solid var(--border);
+  }
+  .toolbar-group:last-child { border-right: none; }
+
+  .toolbar-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-right: 4px;
+  }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-light); }
+  .btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-dim); }
+  .btn.danger:hover { background: rgba(255,95,95,0.15); color: var(--danger); border-color: var(--danger); }
+  .btn.success:hover { background: rgba(79,219,143,0.15); color: var(--success); border-color: var(--success); }
+
+  .btn-icon { font-size: 13px; }
+  .btn kbd {
+    font-size: 9px;
+    background: var(--bg-active);
+    border-radius: 3px;
+    padding: 1px 4px;
+    color: var(--text-muted);
+  }
+
+  .separator { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+  /* ===== MAIN LAYOUT ===== */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ===== LEFT PANEL ===== */
+  #left-panel {
+    width: 180px;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 8px 12px;
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-deep);
+  }
+
+  #scene-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px;
+  }
+  #scene-tree::-webkit-scrollbar { width: 4px; }
+  #scene-tree::-webkit-scrollbar-track { background: transparent; }
+  #scene-tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .tree-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-secondary);
+    transition: all var(--transition);
+    border: 1px solid transparent;
+  }
+  .tree-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .tree-item.selected { background: var(--accent-glow); color: var(--accent); border-color: var(--accent-dim); }
+  .tree-item-icon { font-size: 12px; opacity: 0.7; }
+  .tree-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree-item-has-script { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex-shrink: 0; }
+
+  /* ===== VIEWPORT ===== */
+  #viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #0a0c12;
+  }
+
+  #three-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* Viewport overlays */
+  #viewport-info {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .vp-badge {
+    background: rgba(13,15,20,0.85);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    backdrop-filter: blur(4px);
+  }
+  .vp-badge span { color: var(--accent); }
+
+  #transform-hint {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(13,15,20,0.9);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-align: center;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    transition: opacity 0.3s;
+  }
+
+  #gizmo-canvas {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 80px;
+    height: 80px;
+    pointer-events: none;
+  }
+
+  /* ===== RIGHT PANEL ===== */
+  #right-panel {
+    width: var(--panel-w);
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .panel-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-deep);
+  }
+  .panel-tab {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    cursor: pointer;
+    text-align: center;
+    border-bottom: 2px solid transparent;
+    transition: all var(--transition);
+  }
+  .panel-tab:hover { color: var(--text-secondary); }
+  .panel-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .panel-content {
+    flex: 1;
+    overflow-y: auto;
+    display: none;
+  }
+  .panel-content.active { display: block; }
+  .panel-content::-webkit-scrollbar { width: 4px; }
+  .panel-content::-webkit-scrollbar-track { background: transparent; }
+  .panel-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Properties */
+  .prop-section {
+    border-bottom: 1px solid var(--border);
+  }
+  .prop-section-header {
+    padding: 7px 12px;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    background: var(--bg-deep);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .prop-section-header:hover { color: var(--text-secondary); }
+
+  .prop-row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    align-items: center;
+    padding: 3px 8px;
+    gap: 6px;
+    min-height: 26px;
+  }
+  .prop-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .prop-value {
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+
+  .xyz-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 3px;
+  }
+
+  .num-input {
+    background: var(--bg-widget);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 10px;
+    padding: 3px 6px;
+    width: 100%;
+    transition: border-color var(--transition);
+    text-align: center;
+  }
+  .num-input:focus { outline: none; border-color: var(--accent); background: var(--bg-active); }
+  .num-input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .color-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .color-input {
+    width: 32px;
+    height: 24px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+    padding: 2px;
+  }
+  .color-hex {
+    flex: 1;
+    background: var(--bg-widget);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+  .color-hex:focus { outline: none; border-color: var(--accent); }
+
+  .no-selection {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .no-selection-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.3; }
+
+  /* Script Editor */
+  #script-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 8px;
+    gap: 6px;
+  }
+  .script-toolbar {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  #script-textarea {
+    flex: 1;
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: #a8d8ff;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    padding: 8px;
+    resize: none;
+    min-height: 200px;
+    line-height: 1.5;
+    tab-size: 2;
+    transition: border-color var(--transition);
+  }
+  #script-textarea:focus { outline: none; border-color: var(--accent-dim); }
+  .script-status {
+    font-size: 9px;
+    color: var(--text-muted);
+    padding: 2px 0;
+  }
+  .script-status.ok { color: var(--success); }
+  .script-status.err { color: var(--danger); }
+
+  /* Physics toggle */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle-label { font-size: 10px; color: var(--text-secondary); }
+  .toggle {
+    width: 32px;
+    height: 16px;
+    background: var(--bg-widget);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: background var(--transition);
+  }
+  .toggle.on { background: var(--accent-dim); border-color: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: all var(--transition);
+  }
+  .toggle.on::after { left: 18px; background: var(--accent); }
+
+  /* Context Menu */
+  #ctx-menu {
+    position: fixed;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 4px;
+    min-width: 160px;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+  .ctx-item {
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .ctx-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .ctx-item.danger:hover { background: rgba(255,95,95,0.1); color: var(--danger); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+  .ctx-item kbd { font-size: 9px; color: var(--text-muted); background: var(--bg-active); border-radius: 3px; padding: 1px 4px; }
+
+  /* Toast */
+  #toast-container {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    animation: toastIn 0.2s ease;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+  .toast.ok { border-left: 3px solid var(--success); color: var(--success); }
+  .toast.err { border-left: 3px solid var(--danger); color: var(--danger); }
+  .toast.info { border-left: 3px solid var(--accent); color: var(--accent); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* Snap indicator */
+  .snap-on { color: var(--success) !important; }
+
+  /* Insert dropdown */
+  .insert-dropdown {
+    position: absolute;
+    top: calc(var(--toolbar-h) + 2px);
+    left: 0;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 4px;
+    z-index: 100;
+    min-width: 140px;
+    display: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .insert-dropdown.open { display: block; }
+  .insert-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-secondary);
+    transition: all var(--transition);
+  }
+  .insert-option:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .insert-option .shape-icon { font-size: 15px; }
+
+  /* Physics indicator */
+  #physics-indicator {
+    position: absolute;
+    top: 10px;
+    right: 100px;
+    background: rgba(255,179,71,0.15);
+    border: 1px solid var(--warn);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    color: var(--warn);
+    display: none;
+  }
+  #physics-indicator.on { display: block; }
+</style>
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap">
+</head>
+<body>
+
+<!-- ===== TOOLBAR ===== -->
+<div id="toolbar">
+  <div class="toolbar-logo">Studio3D</div>
+
+  <!-- Insert -->
+  <div class="toolbar-group" style="position:relative">
+    <div class="toolbar-label">Insert</div>
+    <button class="btn" id="btn-insert" onclick="toggleInsertDropdown()">
+      <span class="btn-icon">＋</span> Part
+    </button>
+    <div class="insert-dropdown" id="insert-dropdown">
+      <div class="insert-option" onclick="insertPart('cube')"><span class="shape-icon">⬜</span> Cube</div>
+      <div class="insert-option" onclick="insertPart('sphere')"><span class="shape-icon">⚪</span> Sphere</div>
+      <div class="insert-option" onclick="insertPart('cylinder')"><span class="shape-icon">🥫</span> Cylinder</div>
+    </div>
+  </div>
+
+  <!-- Transform Tools -->
+  <div class="toolbar-group">
+    <div class="toolbar-label">Tool</div>
+    <button class="btn active" id="tool-move" onclick="setTool('move')" title="Move [W/A/S/D]">
+      <span class="btn-icon">✥</span> Move <kbd>W</kbd>
+    </button>
+    <button class="btn" id="tool-rotate" onclick="setTool('rotate')" title="Rotate [E]">
+      <span class="btn-icon">↻</span> Rotate <kbd>E</kbd>
+    </button>
+    <button class="btn" id="tool-scale" onclick="setTool('scale')" title="Scale [R]">
+      <span class="btn-icon">⤢</span> Scale <kbd>R</kbd>
+    </button>
+  </div>
+
+  <!-- Edit -->
+  <div class="toolbar-group">
+    <div class="toolbar-label">Edit</div>
+    <button class="btn" onclick="duplicateSelected()" title="Duplicate [Ctrl+D]">
+      <span class="btn-icon">⧉</span> Duplicate
+    </button>
+    <button class="btn danger" onclick="deleteSelected()" title="Delete [Del]">
+      <span class="btn-icon">🗑</span> Delete
+    </button>
+  </div>
+
+  <!-- Grid / Physics -->
+  <div class="toolbar-group">
+    <div class="toolbar-label">View</div>
+    <button class="btn" id="btn-snap" onclick="toggleSnap()" title="Toggle snap-to-grid">
+      <span class="btn-icon">⊞</span> Snap
+    </button>
+    <button class="btn" id="btn-physics" onclick="togglePhysics()">
+      <span class="btn-icon">⬇</span> Physics
+    </button>
+  </div>
+
+  <!-- Scene -->
+  <div class="toolbar-group">
+    <div class="toolbar-label">Scene</div>
+    <button class="btn success" onclick="saveScene()"><span class="btn-icon">💾</span> Save</button>
+    <button class="btn" onclick="loadScene()"><span class="btn-icon">📂</span> Load</button>
+    <button class="btn danger" onclick="clearScene()"><span class="btn-icon">✕</span> Clear</button>
+  </div>
+
+  <input type="file" id="file-input" accept=".json" style="display:none" onchange="onFileLoad(event)">
+</div>
+
+<!-- ===== MAIN ===== -->
+<div id="main">
+  <!-- Left: Scene Tree -->
+  <div id="left-panel">
+    <div class="panel-header">Scene Hierarchy</div>
+    <div id="scene-tree"></div>
+  </div>
+
+  <!-- Viewport -->
+  <div id="viewport">
+    <canvas id="three-canvas"></canvas>
+    <canvas id="gizmo-canvas"></canvas>
+
+    <div id="viewport-info">
+      <div class="vp-badge">Parts: <span id="info-parts">0</span></div>
+      <div class="vp-badge">Tool: <span id="info-tool">Move</span></div>
+    </div>
+
+    <div id="transform-hint">Click to select · Right-click for options · Scroll to zoom · Middle drag to pan</div>
+    <div id="physics-indicator">⚛ Physics On</div>
+  </div>
+
+  <!-- Right: Properties + Script -->
+  <div id="right-panel">
+    <div class="panel-tabs">
+      <div class="panel-tab active" onclick="switchTab('properties')">Properties</div>
+      <div class="panel-tab" onclick="switchTab('script')">Script</div>
+      <div class="panel-tab" onclick="switchTab('settings')">Settings</div>
+    </div>
+
+    <!-- Properties Tab -->
+    <div class="panel-content active" id="tab-properties">
+      <div id="no-selection">
+        <div class="no-selection">
+          <div class="no-selection-icon">⬜</div>
+          No part selected.<br>Click a part or insert one.
+        </div>
+      </div>
+      <div id="prop-form" style="display:none">
+        <!-- Name -->
+        <div class="prop-section">
+          <div class="prop-section-header">Identity</div>
+          <div class="prop-row">
+            <div class="prop-label">Name</div>
+            <input class="num-input" id="p-name" type="text" style="text-align:left" oninput="applyProp('name')">
+          </div>
+          <div class="prop-row">
+            <div class="prop-label">Shape</div>
+            <div class="prop-value" id="p-shape-label">—</div>
+          </div>
+        </div>
+
+        <!-- Position -->
+        <div class="prop-section">
+          <div class="prop-section-header">Position</div>
+          <div class="prop-row">
+            <div class="prop-label">X Y Z</div>
+            <div class="xyz-group">
+              <input class="num-input" id="p-px" type="number" step="0.5" oninput="applyProp('position')">
+              <input class="num-input" id="p-py" type="number" step="0.5" oninput="applyProp('position')">
+              <input class="num-input" id="p-pz" type="number" step="0.5" oninput="applyProp('position')">
+            </div>
+          </div>
+        </div>
+
+        <!-- Rotation -->
+        <div class="prop-section">
+          <div class="prop-section-header">Rotation (deg)</div>
+          <div class="prop-row">
+            <div class="prop-label">X Y Z</div>
+            <div class="xyz-group">
+              <input class="num-input" id="p-rx" type="number" step="5" oninput="applyProp('rotation')">
+              <input class="num-input" id="p-ry" type="number" step="5" oninput="applyProp('rotation')">
+              <input class="num-input" id="p-rz" type="number" step="5" oninput="applyProp('rotation')">
+            </div>
+          </div>
+        </div>
+
+        <!-- Scale -->
+        <div class="prop-section">
+          <div class="prop-section-header">Scale</div>
+          <div class="prop-row">
+            <div class="prop-label">X Y Z</div>
+            <div class="xyz-group">
+              <input class="num-input" id="p-sx" type="number" step="0.1" min="0.01" oninput="applyProp('scale')">
+              <input class="num-input" id="p-sy" type="number" step="0.1" min="0.01" oninput="applyProp('scale')">
+              <input class="num-input" id="p-sz" type="number" step="0.1" min="0.01" oninput="applyProp('scale')">
+            </div>
+          </div>
+        </div>
+
+        <!-- Appearance -->
+        <div class="prop-section">
+          <div class="prop-section-header">Appearance</div>
+          <div class="prop-row">
+            <div class="prop-label">Color</div>
+            <div class="color-row">
+              <input class="color-input" type="color" id="p-color" oninput="applyProp('color')">
+              <input class="color-hex num-input" type="text" id="p-color-hex" maxlength="7" placeholder="#ffffff"
+                     oninput="syncColorFromHex()" style="text-align:left">
+            </div>
+          </div>
+          <div class="prop-row">
+            <div class="prop-label">Opacity</div>
+            <input class="num-input" id="p-opacity" type="number" step="0.05" min="0" max="1" oninput="applyProp('opacity')">
+          </div>
+        </div>
+
+        <!-- Physics per part -->
+        <div class="prop-section">
+          <div class="prop-section-header">Physics</div>
+          <div class="prop-row">
+            <div class="prop-label">Anchored</div>
+            <label style="cursor:pointer;font-size:11px;color:var(--text-secondary)">
+              <input type="checkbox" id="p-anchored" onchange="applyProp('anchored')">
+              <span style="margin-left:4px">Ignore gravity</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Script Tab -->
+    <div class="panel-content" id="tab-script">
+      <div id="script-editor">
+        <div style="font-size:10px;color:var(--text-muted);padding:4px 0">
+          Attach JS to selected part. Available: <code style="color:var(--accent)">part</code>, <code style="color:var(--accent)">dt</code>
+        </div>
+        <div class="script-toolbar">
+          <button class="btn" onclick="attachScript()" style="flex:1">▶ Attach &amp; Run</button>
+          <button class="btn danger" onclick="detachScript()">✕ Remove</button>
+        </div>
+        <textarea id="script-textarea" spellcheck="false" placeholder="// Script runs every frame
+// 'part' = the Three.js mesh
+// 'dt' = delta time in seconds
+
+part.rotation.y += dt * 1.5;
+"></textarea>
+        <div class="script-status" id="script-status">No script attached</div>
+        <div style="font-size:9px;color:var(--text-muted);line-height:1.6">
+          <b style="color:var(--text-secondary)">Examples:</b><br>
+          • <code style="color:var(--accent)">part.rotation.y += dt;</code><br>
+          • <code style="color:var(--accent)">part.position.y = Math.sin(Date.now()/500);</code><br>
+          • <code style="color:var(--accent)">part.material.color.setHSL(Date.now()/2000%1,1,0.5);</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div class="panel-content" id="tab-settings">
+      <div class="prop-section">
+        <div class="prop-section-header">Scene Settings</div>
+        <div class="toggle-row">
+          <div class="toggle-label">Show Grid</div>
+          <div class="toggle on" id="toggle-grid" onclick="toggleSetting('grid')"></div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label">Show Axes</div>
+          <div class="toggle on" id="toggle-axes" onclick="toggleSetting('axes')"></div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label">Wireframe</div>
+          <div class="toggle" id="toggle-wireframe" onclick="toggleSetting('wireframe')"></div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label">Shadows</div>
+          <div class="toggle on" id="toggle-shadows" onclick="toggleSetting('shadows')"></div>
+        </div>
+        <div class="prop-row">
+          <div class="prop-label">Grid Size</div>
+          <input class="num-input" type="number" id="setting-grid-size" value="1" min="0.25" step="0.25" oninput="updateGridSize()">
+        </div>
+      </div>
+      <div class="prop-section">
+        <div class="prop-section-header">Background</div>
+        <div class="prop-row">
+          <div class="prop-label">Sky Color</div>
+          <input class="color-input" type="color" id="setting-sky" value="#0a0c14" oninput="updateSky()">
+        </div>
+      </div>
+      <div class="prop-section">
+        <div class="prop-section-header">Physics</div>
+        <div class="prop-row">
+          <div class="prop-label">Gravity</div>
+          <input class="num-input" type="number" id="setting-gravity" value="-9.8" step="0.1" oninput="updateGravity()">
+        </div>
+        <div class="prop-row">
+          <div class="prop-label">Bounce</div>
+          <input class="num-input" type="number" id="setting-bounce" value="0.3" min="0" max="1" step="0.05">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div id="ctx-menu">
+  <div class="ctx-item" onclick="insertPart('cube')">⬜ Insert Cube</div>
+  <div class="ctx-item" onclick="insertPart('sphere')">⚪ Insert Sphere</div>
+  <div class="ctx-item" onclick="insertPart('cylinder')">🥫 Insert Cylinder</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="duplicateSelected()">⧉ Duplicate <kbd>Ctrl+D</kbd></div>
+  <div class="ctx-item" onclick="focusSelected()">⊙ Focus <kbd>F</kbd></div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" onclick="deleteSelected()">🗑 Delete <kbd>Del</kbd></div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- ===== THREE.JS + OrbitControls ===== -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+// ============================================================
+//  STUDIO3D — Main Application
+//  Sections:
+//    1. State
+//    2. Scene Setup
+//    3. Part System
+//    4. Selection System
+//    5. Transform Tools
+//    6. Physics System
+//    7. Scripting System
+//    8. UI / Properties Panel
+//    9. Scene Tree
+//   10. Persistence (Save/Load)
+//   11. Keyboard Shortcuts
+//   12. Context Menu
+//   13. Render Loop
+// ============================================================
+
+/* ============================================================
+   1. STATE
+   ============================================================ */
+const state = {
+  parts: [],            // Array of { id, name, shape, mesh, velocity, anchored, script, scriptFn }
+  selected: null,       // Currently selected part
+  tool: 'move',         // Current transform tool
+  snapEnabled: false,   // Snap-to-grid
+  snapSize: 1.0,        // Grid snap unit
+  physicsEnabled: false,// Global physics toggle
+  gravity: -9.8,
+  wireframe: false,
+  partCounter: 0,
+  isDragging: false,
+  dragAxis: null,       // 'x'|'y'|'z'
+  dragStartMouse: null,
+  dragStartValue: null,
+};
+
+const FLOOR_Y = 0; // Y position of the floor
+
+/* ============================================================
+   2. SCENE SETUP
+   ============================================================ */
+const canvas    = document.getElementById('three-canvas');
+const viewport  = document.getElementById('viewport');
+const renderer  = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x0a0c14);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 2000);
+camera.position.set(10, 10, 14);
+camera.lookAt(0, 0, 0);
+
+// Orbit controls
+const orbit = new THREE.OrbitControls(camera, renderer.domElement);
+orbit.enableDamping    = true;
+orbit.dampingFactor    = 0.08;
+orbit.minDistance      = 2;
+orbit.maxDistance      = 200;
+orbit.mouseButtons     = {
+  LEFT:   null,           // We handle left click for selection
+  MIDDLE: THREE.MOUSE.PAN,
+  RIGHT:  THREE.MOUSE.ROTATE
+};
+
+// Lighting
+const ambient = new THREE.AmbientLight(0x8090b0, 0.6);
+scene.add(ambient);
+
+const sunLight = new THREE.DirectionalLight(0xfff4e0, 1.2);
+sunLight.position.set(20, 30, 15);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far  = 200;
+sunLight.shadow.camera.left = sunLight.shadow.camera.bottom = -40;
+sunLight.shadow.camera.right = sunLight.shadow.camera.top   = 40;
+scene.add(sunLight);
+
+const fillLight = new THREE.DirectionalLight(0x4060ff, 0.2);
+fillLight.position.set(-10, 5, -10);
+scene.add(fillLight);
+
+// Grid floor
+const gridHelper = new THREE.GridHelper(60, 60, 0x1e2233, 0x1a1e2a);
+scene.add(gridHelper);
+
+// Floor plane (for raycasting + shadow receiving)
+const floorGeo  = new THREE.PlaneGeometry(120, 120);
+const floorMat  = new THREE.MeshStandardMaterial({ color: 0x0d1020, roughness: 1, metalness: 0 });
+const floor     = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+floor.userData.isFloor = true;
+scene.add(floor);
+
+// Axes helper
+const axesHelper = new THREE.AxesHelper(5);
+scene.add(axesHelper);
+
+// Raycaster
+const raycaster = new THREE.Raycaster();
+const mouse     = new THREE.Vector2();
+
+// Gizmo (mini orientation cube in corner)
+const gizmoCanvas  = document.getElementById('gizmo-canvas');
+const gizmoRenderer= new THREE.WebGLRenderer({ canvas: gizmoCanvas, antialias: true, alpha: true });
+gizmoRenderer.setPixelRatio(window.devicePixelRatio);
+gizmoRenderer.setSize(80, 80);
+const gizmoScene   = new THREE.Scene();
+const gizmoCamera  = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+gizmoCamera.position.set(2.5, 2.5, 2.5);
+gizmoCamera.lookAt(0, 0, 0);
+gizmoScene.add(new THREE.AxesHelper(1.5));
+const gizmoCubeGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+const gizmoCubeMat = new THREE.MeshBasicMaterial({ color: 0x1a1e2a, wireframe: false });
+const gizmoCube    = new THREE.Mesh(gizmoCubeGeo, gizmoCubeMat);
+gizmoScene.add(gizmoCube);
+
+// Resize handler
+function onResize() {
+  const w = viewport.clientWidth;
+  const h = viewport.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+/* ============================================================
+   3. PART SYSTEM
+   ============================================================ */
+
+/** Create geometry based on shape name */
+function createGeometry(shape) {
+  switch(shape) {
+    case 'sphere':   return new THREE.SphereGeometry(0.5, 24, 16);
+    case 'cylinder': return new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+    default:         return new THREE.BoxGeometry(1, 1, 1);
+  }
+}
+
+/** Insert a new part into the scene */
+function insertPart(shape) {
+  closeInsertDropdown();
+  state.partCounter++;
+  const id   = `part_${state.partCounter}`;
+  const name = `${shape.charAt(0).toUpperCase() + shape.slice(1)}${state.partCounter}`;
+
+  const geo  = createGeometry(shape);
+  const mat  = new THREE.MeshStandardMaterial({
+    color: randomColor(),
+    roughness: 0.5,
+    metalness: 0.1,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(0, 1, 0);
+  mesh.castShadow    = true;
+  mesh.receiveShadow = true;
+  mesh.userData      = { id, shape };
+
+  scene.add(mesh);
+
+  const partObj = {
+    id,
+    name,
+    shape,
+    mesh,
+    velocity:   new THREE.Vector3(0, 0, 0),
+    anchored:   false,
+    script:     '',
+    scriptFn:   null,
+  };
+  state.parts.push(partObj);
+
+  selectPart(partObj);
+  refreshTree();
+  updateStats();
+  toast(`Inserted ${name}`, 'ok');
+}
+
+/** Remove a part entirely */
+function removePart(partObj) {
+  scene.remove(partObj.mesh);
+  partObj.mesh.geometry.dispose();
+  partObj.mesh.material.dispose();
+  state.parts = state.parts.filter(p => p.id !== partObj.id);
+  if (state.selected && state.selected.id === partObj.id) {
+    deselectAll();
+  }
+  refreshTree();
+  updateStats();
+}
+
+function deleteSelected() {
+  if (!state.selected) return;
+  const name = state.selected.name;
+  removePart(state.selected);
+  toast(`Deleted ${name}`, 'info');
+}
+
+function duplicateSelected() {
+  if (!state.selected) return;
+  const src = state.selected;
+  insertPart(src.shape);
+  const newPart = state.parts[state.parts.length - 1];
+  newPart.mesh.position.copy(src.mesh.position).addScalar(1);
+  newPart.mesh.rotation.copy(src.mesh.rotation);
+  newPart.mesh.scale.copy(src.mesh.scale);
+  newPart.mesh.material.color.copy(src.mesh.material.color);
+  newPart.mesh.material.opacity = src.mesh.material.opacity;
+  newPart.anchored = src.anchored;
+  updatePropertiesPanel();
+  toast(`Duplicated ${newPart.name}`, 'ok');
+}
+
+function clearScene() {
+  if (!confirm('Clear all parts?')) return;
+  [...state.parts].forEach(removePart);
+  toast('Scene cleared', 'info');
+}
+
+function randomColor() {
+  const palette = [0x4f9eff, 0xff5f9e, 0x4fdb8f, 0xffb347, 0xc87aff, 0xff6b6b, 0x47d3d3];
+  return palette[Math.floor(Math.random() * palette.length)];
+}
+
+/* ============================================================
+   4. SELECTION SYSTEM
+   ============================================================ */
+const selectionHighlight = (() => {
+  // Outline using a scaled wireframe overlay
+  const mat = new THREE.MeshBasicMaterial({ color: 0x4f9eff, wireframe: true, transparent: true, opacity: 0.4 });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), mat);
+  mesh.visible = false;
+  scene.add(mesh);
+  return mesh;
+})();
+
+function selectPart(partObj) {
+  deselectAll();
+  state.selected = partObj;
+
+  // Show highlight
+  selectionHighlight.geometry.dispose();
+  selectionHighlight.geometry = partObj.mesh.geometry.clone();
+  selectionHighlight.position.copy(partObj.mesh.position);
+  selectionHighlight.rotation.copy(partObj.mesh.rotation);
+  selectionHighlight.scale.copy(partObj.mesh.scale).multiplyScalar(1.02);
+  selectionHighlight.visible = true;
+
+  // Emissive tint
+  partObj.mesh.material.emissive    = new THREE.Color(0x224488);
+  partObj.mesh.material.emissiveIntensity = 0.3;
+
+  updatePropertiesPanel();
+  refreshTree();
+
+  // Load script into editor
+  document.getElementById('script-textarea').value = partObj.script || '';
+  updateScriptStatus(partObj);
+}
+
+function deselectAll() {
+  if (state.selected) {
+    state.selected.mesh.material.emissive = new THREE.Color(0x000000);
+    state.selected.mesh.material.emissiveIntensity = 0;
+    state.selected = null;
+  }
+  selectionHighlight.visible = false;
+  updatePropertiesPanel();
+  refreshTree();
+}
+
+/** Sync highlight position/rotation/scale each frame */
+function updateHighlight() {
+  if (!state.selected) return;
+  const m = state.selected.mesh;
+  selectionHighlight.position.copy(m.position);
+  selectionHighlight.rotation.copy(m.rotation);
+  selectionHighlight.scale.copy(m.scale).multiplyScalar(1.02);
+}
+
+/* ============================================================
+   5. TRANSFORM TOOLS
+   ============================================================ */
+
+/** Set active tool */
+function setTool(tool) {
+  state.tool = tool;
+  ['move','rotate','scale'].forEach(t => {
+    document.getElementById(`tool-${t}`).classList.toggle('active', t === tool);
+  });
+  document.getElementById('info-tool').textContent = tool.charAt(0).toUpperCase() + tool.slice(1);
+}
+
+/**
+ * Keyboard-based transform (W/A/S/D for move, E for rotate, R for scale)
+ * We map W/S = Z axis, A/D = X axis
+ */
+function applyKeyTransform(key) {
+  if (!state.selected) return;
+  const m    = state.selected.mesh;
+  const step = state.snapEnabled ? state.snapSize : 0.5;
+  const rot  = 15; // degrees
+  const scl  = 0.1;
+
+  switch(state.tool) {
+    case 'move':
+      if (key === 'KeyW') m.position.z -= step;
+      if (key === 'KeyS') m.position.z += step;
+      if (key === 'KeyA') m.position.x -= step;
+      if (key === 'KeyD') m.position.x += step;
+      if (state.snapEnabled) snapMeshPosition(m);
+      break;
+    case 'rotate':
+      if (key === 'KeyW') m.rotation.x -= THREE.MathUtils.degToRad(rot);
+      if (key === 'KeyS') m.rotation.x += THREE.MathUtils.degToRad(rot);
+      if (key === 'KeyA') m.rotation.y -= THREE.MathUtils.degToRad(rot);
+      if (key === 'KeyD') m.rotation.y += THREE.MathUtils.degToRad(rot);
+      break;
+    case 'scale':
+      if (key === 'KeyW') m.scale.y += scl;
+      if (key === 'KeyS') m.scale.y = Math.max(0.01, m.scale.y - scl);
+      if (key === 'KeyA') m.scale.x = Math.max(0.01, m.scale.x - scl);
+      if (key === 'KeyD') m.scale.x += scl;
+      break;
+  }
+  updatePropertiesPanel();
+}
+
+/** Snap position to grid */
+function snapMeshPosition(mesh) {
+  const s = state.snapSize;
+  mesh.position.x = Math.round(mesh.position.x / s) * s;
+  mesh.position.z = Math.round(mesh.position.z / s) * s;
+  mesh.position.y = Math.round(mesh.position.y / s) * s;
+}
+
+/** Focus camera on selected */
+function focusSelected() {
+  if (!state.selected) return;
+  const pos = state.selected.mesh.position;
+  orbit.target.copy(pos);
+  camera.position.copy(pos).add(new THREE.Vector3(5, 4, 5));
+}
+
+/* ============================================================
+   6. PHYSICS SYSTEM
+   ============================================================ */
+
+function togglePhysics() {
+  state.physicsEnabled = !state.physicsEnabled;
+  document.getElementById('btn-physics').classList.toggle('active', state.physicsEnabled);
+  document.getElementById('physics-indicator').classList.toggle('on', state.physicsEnabled);
+  toast(state.physicsEnabled ? 'Physics ON' : 'Physics OFF', 'info');
+}
+
+function updateGravity() {
+  state.gravity = parseFloat(document.getElementById('setting-gravity').value) || -9.8;
+}
+
+/** Step physics for all non-anchored parts */
+function stepPhysics(dt) {
+  if (!state.physicsEnabled) return;
+  const bounce = parseFloat(document.getElementById('setting-bounce').value) || 0.3;
+
+  for (const part of state.parts) {
+    if (part.anchored) continue;
+
+    // Get rough bounding box half-height
+    const bb = new THREE.Box3().setFromObject(part.mesh);
+    const halfH = (bb.max.y - bb.min.y) / 2;
+
+    // Apply gravity
+    part.velocity.y += state.gravity * dt;
+
+    // Move
+    part.mesh.position.addScaledVector(part.velocity, dt);
+
+    // Floor collision
+    if (part.mesh.position.y - halfH < FLOOR_Y) {
+      part.mesh.position.y = FLOOR_Y + halfH;
+      part.velocity.y = -part.velocity.y * bounce;
+      // Dampen horizontal
+      part.velocity.x *= 0.95;
+      part.velocity.z *= 0.95;
+    }
+  }
+}
+
+/* ============================================================
+   7. SCRIPTING SYSTEM
+   ============================================================ */
+
+/** Attach script to selected part */
+function attachScript() {
+  if (!state.selected) { toast('No part selected', 'err'); return; }
+  const code = document.getElementById('script-textarea').value.trim();
+  if (!code) { toast('Script is empty', 'err'); return; }
+
+  const part = state.selected;
+  part.script = code;
+
+  try {
+    // Wrap in a function that receives (part, dt)
+    part.scriptFn = new Function('part', 'dt', code);
+    updateScriptStatus(part, null);
+    toast('Script attached ✓', 'ok');
+  } catch(e) {
+    part.scriptFn = null;
+    updateScriptStatus(part, e.message);
+    toast(`Script error: ${e.message}`, 'err');
+  }
+  refreshTree();
+}
+
+function detachScript() {
+  if (!state.selected) return;
+  state.selected.script = '';
+  state.selected.scriptFn = null;
+  document.getElementById('script-textarea').value = '';
+  updateScriptStatus(state.selected);
+  refreshTree();
+  toast('Script removed', 'info');
+}
+
+/** Run all active scripts */
+function runScripts(dt) {
+  for (const part of state.parts) {
+    if (!part.scriptFn) continue;
+    try {
+      part.scriptFn(part.mesh, dt);
+    } catch(e) {
+      // Silently fail after first error (script may rely on state)
+    }
+  }
+}
+
+function updateScriptStatus(part, errMsg) {
+  const el = document.getElementById('script-status');
+  if (!part || !part.scriptFn) {
+    el.textContent = 'No script attached';
+    el.className   = 'script-status';
+  } else if (errMsg) {
+    el.textContent = `Error: ${errMsg}`;
+    el.className   = 'script-status err';
+  } else {
+    el.textContent = 'Script running ✓';
+    el.className   = 'script-status ok';
+  }
+}
+
+/* ============================================================
+   8. UI / PROPERTIES PANEL
+   ============================================================ */
+
+function switchTab(name) {
+  document.querySelectorAll('.panel-tab').forEach((t, i) => {
+    const tabs = ['properties','script','settings'];
+    t.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.panel-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+}
+
+/** Populate the properties panel from the selected part */
+function updatePropertiesPanel() {
+  const hasSel = !!state.selected;
+  document.getElementById('no-selection').style.display = hasSel ? 'none' : 'block';
+  document.getElementById('prop-form').style.display    = hasSel ? 'block' : 'none';
+  if (!hasSel) return;
+
+  const p = state.selected;
+  const m = p.mesh;
+  const r = m.rotation;
+  const toDeg = THREE.MathUtils.radToDeg;
+
+  document.getElementById('p-name').value     = p.name;
+  document.getElementById('p-shape-label').textContent = p.shape;
+
+  document.getElementById('p-px').value = fmt(m.position.x);
+  document.getElementById('p-py').value = fmt(m.position.y);
+  document.getElementById('p-pz').value = fmt(m.position.z);
+
+  document.getElementById('p-rx').value = fmt(toDeg(r.x));
+  document.getElementById('p-ry').value = fmt(toDeg(r.y));
+  document.getElementById('p-rz').value = fmt(toDeg(r.z));
+
+  document.getElementById('p-sx').value = fmt(m.scale.x);
+  document.getElementById('p-sy').value = fmt(m.scale.y);
+  document.getElementById('p-sz').value = fmt(m.scale.z);
+
+  const hex = '#' + m.material.color.getHexString();
+  document.getElementById('p-color').value     = hex;
+  document.getElementById('p-color-hex').value = hex;
+
+  document.getElementById('p-opacity').value   = fmt(m.material.opacity !== undefined ? m.material.opacity : 1);
+  document.getElementById('p-anchored').checked = p.anchored;
+}
+
+/** Apply edited property back to the part */
+function applyProp(prop) {
+  if (!state.selected) return;
+  const p   = state.selected;
+  const m   = p.mesh;
+  const toRad = THREE.MathUtils.degToRad;
+
+  switch(prop) {
+    case 'name':
+      p.name = document.getElementById('p-name').value;
+      refreshTree();
+      break;
+    case 'position':
+      m.position.set(
+        parseFloat(document.getElementById('p-px').value) || 0,
+        parseFloat(document.getElementById('p-py').value) || 0,
+        parseFloat(document.getElementById('p-pz').value) || 0
+      );
+      break;
+    case 'rotation':
+      m.rotation.set(
+        toRad(parseFloat(document.getElementById('p-rx').value) || 0),
+        toRad(parseFloat(document.getElementById('p-ry').value) || 0),
+        toRad(parseFloat(document.getElementById('p-rz').value) || 0)
+      );
+      break;
+    case 'scale':
+      m.scale.set(
+        Math.max(0.01, parseFloat(document.getElementById('p-sx').value) || 1),
+        Math.max(0.01, parseFloat(document.getElementById('p-sy').value) || 1),
+        Math.max(0.01, parseFloat(document.getElementById('p-sz').value) || 1)
+      );
+      break;
+    case 'color':
+      const hex = document.getElementById('p-color').value;
+      m.material.color.set(hex);
+      document.getElementById('p-color-hex').value = hex;
+      break;
+    case 'opacity':
+      const op = Math.min(1, Math.max(0, parseFloat(document.getElementById('p-opacity').value) || 1));
+      m.material.opacity    = op;
+      m.material.transparent = op < 1;
+      m.material.needsUpdate = true;
+      break;
+    case 'anchored':
+      p.anchored = document.getElementById('p-anchored').checked;
+      if (p.anchored) p.velocity.set(0,0,0);
+      break;
+  }
+}
+
+function syncColorFromHex() {
+  const hex = document.getElementById('p-color-hex').value;
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    document.getElementById('p-color').value = hex;
+    applyProp('color');
+  }
+}
+
+function fmt(v) { return parseFloat(v.toFixed(3)); }
+
+/* ============================================================
+   9. SCENE TREE
+   ============================================================ */
+function refreshTree() {
+  const tree = document.getElementById('scene-tree');
+  tree.innerHTML = '';
+
+  if (state.parts.length === 0) {
+    tree.innerHTML = '<div style="padding:12px;font-size:10px;color:var(--text-muted);text-align:center">No parts yet</div>';
+    return;
+  }
+
+  const icons = { cube: '⬜', sphere: '⚪', cylinder: '🥫' };
+
+  for (const part of state.parts) {
+    const item = document.createElement('div');
+    item.className = 'tree-item' + (state.selected && state.selected.id === part.id ? ' selected' : '');
+
+    const icon = document.createElement('span');
+    icon.className = 'tree-item-icon';
+    icon.textContent = icons[part.shape] || '⬜';
+
+    const name = document.createElement('span');
+    name.className   = 'tree-item-name';
+    name.textContent = part.name;
+
+    item.appendChild(icon);
+    item.appendChild(name);
+
+    if (part.scriptFn) {
+      const dot = document.createElement('div');
+      dot.className   = 'tree-item-has-script';
+      dot.title       = 'Has script';
+      item.appendChild(dot);
+    }
+
+    item.addEventListener('click', () => selectPart(part));
+    tree.appendChild(item);
+  }
+}
+
+function updateStats() {
+  document.getElementById('info-parts').textContent = state.parts.length;
+}
+
+/* ============================================================
+   10. SCENE SETTINGS
+   ============================================================ */
+function toggleSetting(setting) {
+  const toggle = document.getElementById(`toggle-${setting}`);
+  toggle.classList.toggle('on');
+  const on = toggle.classList.contains('on');
+
+  switch(setting) {
+    case 'grid':
+      gridHelper.visible = on;
+      break;
+    case 'axes':
+      axesHelper.visible = on;
+      break;
+    case 'wireframe':
+      state.wireframe = on;
+      state.parts.forEach(p => {
+        p.mesh.material.wireframe = on;
+        p.mesh.material.needsUpdate = true;
+      });
+      break;
+    case 'shadows':
+      renderer.shadowMap.enabled = on;
+      sunLight.castShadow = on;
+      break;
+  }
+}
+
+function updateGridSize() {
+  state.snapSize = parseFloat(document.getElementById('setting-grid-size').value) || 1;
+}
+
+function updateSky() {
+  const c = document.getElementById('setting-sky').value;
+  renderer.setClearColor(c);
+}
+
+function toggleSnap() {
+  state.snapEnabled = !state.snapEnabled;
+  const btn = document.getElementById('btn-snap');
+  btn.classList.toggle('active', state.snapEnabled);
+  const icon = btn.querySelector('.btn-icon');
+  toast(`Snap ${state.snapEnabled ? 'ON' : 'OFF'}`, 'info');
+}
+
+/* ============================================================
+   10. PERSISTENCE (SAVE / LOAD)
+   ============================================================ */
+function saveScene() {
+  const data = {
+    version: 1,
+    parts: state.parts.map(p => ({
+      id:       p.id,
+      name:     p.name,
+      shape:    p.shape,
+      position: p.mesh.position.toArray(),
+      rotation: [p.mesh.rotation.x, p.mesh.rotation.y, p.mesh.rotation.z],
+      scale:    p.mesh.scale.toArray(),
+      color:    '#' + p.mesh.material.color.getHexString(),
+      opacity:  p.mesh.material.opacity,
+      anchored: p.anchored,
+      script:   p.script,
+    }))
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'studio3d_scene.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`Saved ${data.parts.length} parts`, 'ok');
+}
+
+function loadScene() {
+  document.getElementById('file-input').click();
+}
+
+function onFileLoad(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.parts) throw new Error('Invalid scene file');
+      clearScene();
+      for (const pd of data.parts) {
+        insertPart(pd.shape);
+        const part = state.parts[state.parts.length - 1];
+        part.id   = pd.id;
+        part.name = pd.name;
+        part.mesh.position.fromArray(pd.position);
+        part.mesh.rotation.set(...pd.rotation);
+        part.mesh.scale.fromArray(pd.scale);
+        part.mesh.material.color.set(pd.color);
+        part.mesh.material.opacity    = pd.opacity;
+        part.mesh.material.transparent = pd.opacity < 1;
+        part.anchored = pd.anchored;
+        part.script   = pd.script || '';
+        if (part.script) {
+          try { part.scriptFn = new Function('part', 'dt', part.script); } catch(err) {}
+        }
+        deselectAll();
+      }
+      refreshTree();
+      updateStats();
+      toast(`Loaded ${data.parts.length} parts`, 'ok');
+    } catch(err) {
+      toast(`Load error: ${err.message}`, 'err');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+/* ============================================================
+   11. KEYBOARD SHORTCUTS
+   ============================================================ */
+document.addEventListener('keydown', e => {
+  // Ignore if focused on input
+  if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+
+  // Tool shortcuts
+  if (e.code === 'KeyW' && !e.ctrlKey) { if (!state.selected) { setTool('move'); return; } applyKeyTransform('KeyW'); }
+  if (e.code === 'KeyA' && !e.ctrlKey) applyKeyTransform('KeyA');
+  if (e.code === 'KeyS' && !e.ctrlKey) applyKeyTransform('KeyS');
+  if (e.code === 'KeyD' && !e.ctrlKey) { if (!e.ctrlKey) applyKeyTransform('KeyD'); }
+  if (e.code === 'KeyE') { setTool('rotate'); }
+  if (e.code === 'KeyR') { setTool('scale'); }
+  if (e.code === 'KeyF') { focusSelected(); }
+
+  // Delete
+  if (e.code === 'Delete' || e.code === 'Backspace') {
+    e.preventDefault();
+    deleteSelected();
+  }
+
+  // Duplicate
+  if (e.code === 'KeyD' && e.ctrlKey) {
+    e.preventDefault();
+    duplicateSelected();
+  }
+
+  // Escape = deselect
+  if (e.code === 'Escape') deselectAll();
+});
+
+/* ============================================================
+   12. MOUSE / CLICK HANDLING
+   ============================================================ */
+let mouseDownPos = { x: 0, y: 0 };
+
+canvas.addEventListener('mousedown', e => {
+  mouseDownPos = { x: e.clientX, y: e.clientY };
+});
+
+canvas.addEventListener('mouseup', e => {
+  // Only handle left click and only if it wasn't a drag
+  if (e.button !== 0) return;
+  const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
+  if (dist > 5) return; // was a drag, not a click
+
+  // Compute mouse in NDC
+  const rect = canvas.getBoundingClientRect();
+  mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+  mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+
+  // Get all part meshes
+  const meshes = state.parts.map(p => p.mesh);
+  const hits   = raycaster.intersectObjects(meshes, false);
+
+  if (hits.length > 0) {
+    const hitMesh = hits[0].object;
+    const part    = state.parts.find(p => p.mesh === hitMesh);
+    if (part) selectPart(part);
+  } else {
+    // Check if clicking floor/empty space
+    deselectAll();
+  }
+});
+
+/* ============================================================
+   13. CONTEXT MENU
+   ============================================================ */
+const ctxMenu = document.getElementById('ctx-menu');
+
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY);
+});
+
+function showCtxMenu(x, y) {
+  ctxMenu.style.left    = x + 'px';
+  ctxMenu.style.top     = y + 'px';
+  ctxMenu.style.display = 'block';
+
+  // Position within viewport
+  const rect = ctxMenu.getBoundingClientRect();
+  if (rect.right  > window.innerWidth)  ctxMenu.style.left = (x - rect.width)  + 'px';
+  if (rect.bottom > window.innerHeight) ctxMenu.style.top  = (y - rect.height) + 'px';
+}
+
+function hideCtxMenu() { ctxMenu.style.display = 'none'; }
+
+document.addEventListener('click', hideCtxMenu);
+document.addEventListener('keydown', e => { if (e.code === 'Escape') hideCtxMenu(); });
+
+/* ============================================================
+   INSERT DROPDOWN
+   ============================================================ */
+const insertDropdown = document.getElementById('insert-dropdown');
+
+function toggleInsertDropdown() {
+  insertDropdown.classList.toggle('open');
+}
+function closeInsertDropdown() {
+  insertDropdown.classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#btn-insert') && !e.target.closest('#insert-dropdown')) {
+    closeInsertDropdown();
+  }
+});
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.3s';
+    setTimeout(() => el.remove(), 300);
+  }, 2000);
+}
+
+/* ============================================================
+   GIZMO ORIENTATION CUBE
+   ============================================================ */
+function renderGizmo() {
+  // Mirror camera orientation
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  gizmoCamera.position.copy(dir).negate().multiplyScalar(4);
+  gizmoCamera.lookAt(0, 0, 0);
+  gizmoRenderer.render(gizmoScene, gizmoCamera);
+}
+
+/* ============================================================
+   14. RENDER LOOP
+   ============================================================ */
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.1); // cap at 100ms
+
+  // Physics
+  stepPhysics(dt);
+
+  // Scripts
+  runScripts(dt);
+
+  // Keep highlight in sync
+  updateHighlight();
+
+  // Update orbit
+  orbit.update();
+
+  // Render main scene
+  renderer.render(scene, camera);
+
+  // Render gizmo
+  renderGizmo();
+
+  // Sync properties panel if something is selected (for script animations)
+  // Only update every 10 frames to avoid performance hit
+  if (state.selected && Math.round(clock.elapsedTime * 10) % 3 === 0) {
+    updatePropertiesPanel();
+  }
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+refreshTree();
+updateStats();
+toast('Welcome to Studio3D! Insert a part to begin.', 'info');
+animate();
+</script>
+</body>
+</html>
