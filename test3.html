@@ -1579,7 +1579,7 @@ function saveFile() {
   a.href = URL.createObjectURL(blob);
   a.download = (scene.children.find(c=>c.class==='Workspace')?.name||'Place') + '.rbxl';
   a.click();
-  log('💾 Saved as .rbxl', 'info');
+  log(' Saved as .rbxl file', 'info');
 }
 
 function saveFileAs() { saveFile(); }
@@ -1689,15 +1689,15 @@ function groupSelected() {
   const parent = findParent(selectedNodeId);
   if (!node||!parent) return;
   pushUndo();
-  const model = { id:uid(), name:'Model', class:'Model', icon:'📦', expanded:true, children:[node], props:{} };
+  const model = { id:uid(), name:'Model', class:'Model', icon:'', expanded:true, children:[node], props:{} };
   parent.children = parent.children.map(c=>c.id===selectedNodeId?model:c);
   renderExplorer(); syncSceneToObjects();
   selectNode(model.id);
-  log('📦 Grouped into Model', 'info');
+  log(' Grouped into Model', 'info');
 }
 
 function selectAll() {
-  log('Select All — not yet supported in 3D view', 'info');
+  log('Select All not supported in 3D view', 'info');
 }
 
 function renameSelected() {
@@ -1713,7 +1713,7 @@ function renameSelected() {
   }
 }
 
-// ── TOOL MODES ──
+//  TOOL MODES 
 function setTool(t) {
   currentTool = t;
   document.querySelectorAll('[id^=tool-]').forEach(b=>b.classList.remove('active'));
@@ -1730,7 +1730,7 @@ function setSnap(s) {
   log(`Snap set to ${s} studs`, 'info');
 }
 
-// ── MENU ──
+//  MENU 
 function toggleMenu(el) {
   const wasOpen = el.classList.contains('open');
   document.querySelectorAll('.menu-item.open').forEach(m=>m.classList.remove('open'));
@@ -1740,7 +1740,7 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.menu-item')) document.querySelectorAll('.menu-item.open').forEach(m=>m.classList.remove('open'));
 });
 
-// ── CONTEXT MENU ──
+//  CONTEXT MENU 
 function showCtxMenu(x,y) {
   const m = document.getElementById('ctx-menu');
   m.style.display='block';
@@ -1752,14 +1752,14 @@ function hideCtxMenu() {
 }
 document.addEventListener('click', e=>{ if(!e.target.closest('#ctx-menu'))hideCtxMenu(); });
 
-// ── PANEL TOGGLE ──
+//  PANEL TOGGLE
 function togglePanel(id) {
   const panels = {explorer:'explorer',properties:'properties',output:'output-panel'};
   const el = document.getElementById(panels[id]||id);
   if (el) el.style.display = el.style.display==='none' ? '' : 'none';
 }
 
-// ── KEYBOARD SHORTCUTS ──
+//  KEYBOARD SHORTCUTS 
 document.addEventListener('keydown', e => {
   if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
   if (e.ctrlKey&&e.key==='s') { e.preventDefault(); saveFile(); }
@@ -1783,9 +1783,9 @@ window.addEventListener('load', () => {
   renderExplorer();
   initThree();
   setTool('select');
-  log('🎮 Roblox Studio Lite loaded successfully!', 'info');
-  log('ℹ️  Use Insert button or toolbar to add objects. Double-click scripts to edit.', 'info');
-  log('ℹ️  Press F5 or ▶ Play to test your game. Ctrl+S to save as .rbxl', 'info');
+  log(' Roblox Studio Lite loaded successfully!', 'info');
+  log('  Use Insert button or toolbar to add objects. Double-click scripts to edit.', 'info');
+  log('  Press F5 or Play to test your game. Ctrl+S to save as .rbxl', 'info');
 });
 </script>
 </body>
